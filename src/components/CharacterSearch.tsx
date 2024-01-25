@@ -1,37 +1,46 @@
-import { useAtom } from "jotai";
-import { useEffect } from "react";
-import { searchResultsAtom, searchTermAtom } from "../models/store";
+import { ChangeEvent, useCallback, useEffect, useState } from "react";
+import InputField from "./InputField";
+import { Character } from "../models/types";
 
 export default function CharacterSearch() {
-  const [searchTerm, setSearchTerm] = useAtom(searchTermAtom)
-  const [searchResults, setSearchResults] = useAtom(searchResultsAtom)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [searchResults, setSearchResults] = useState<Character[]>([])
+  const [debounceInputValue, setDebounceInputValue] = useState("")
 
-  const uri = 'https://swapi.dev/api/people/?search=' + searchTerm
-
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value)
+  }
+  //added debounce so that we don't send a request every keystroke
   useEffect(() => {
-    if (searchTerm.length) {
-      fetch(uri)
-        .then((response) => response.json())
-        .then((data) => {
-          if (Array.isArray(data.results)) {
-            setSearchResults(data.results)
-          }
-      })
-      .catch((e) => console.error(e))
-    } else {
+    const timeoutId = setTimeout(() => {
+      setDebounceInputValue(searchTerm)
+    }, 1000)
+    return () => clearTimeout(timeoutId)
+  }, [searchTerm])
+
+  const onSend = useCallback((query: string) => {
+    if (!query) {
       setSearchResults([])
+      return
     }
-  }, [searchTerm, setSearchResults, uri])
+    const uri = 'https://swapi.dev/api/people/?search=' + searchTerm
+
+    fetch(uri)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data.results)) {
+          setSearchResults(data.results)
+        }
+      })
+      .catch(e => console.error(e))
+  }, [searchTerm, setSearchResults])
+
+  useEffect(() => onSend(debounceInputValue), [debounceInputValue, onSend])
 
 
   return (
     <div>
-      <input 
-        type="text"
-        placeholder="Search..."
-        value={searchTerm}
-        onChange={e => setSearchTerm(e.target.value)}
-      />
+      <InputField value={searchTerm} onChange={handleInputChange} />
       <ul>{searchResults.map((character, index) => 
           <li key={index}>{character.name}</li>
         )}
